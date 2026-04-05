@@ -49,6 +49,7 @@ async def run_turn(user_text: str) -> str:
         cwd=str(settings.brain_local_path),
         permission_mode="acceptEdits",
         max_turns=settings.max_agent_turns,
+        env={"ANTHROPIC_API_KEY": settings.anthropic_api_key},
     )
 
     response_text = ""
