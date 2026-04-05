@@ -21,6 +21,10 @@ router = APIRouter()
 _seen_update_ids: set[int] = set()
 _SEEN_MAX = 1024
 
+# Per-chat serialization: only one agent turn runs at a time per chat_id.
+# Additional messages queue up behind the lock in arrival order.
+_chat_locks: dict[int, asyncio.Lock] = {}
+
 
 def _mark_seen(update_id: int) -> bool:
     """Return True if this update_id is new, False if already seen."""
@@ -34,69 +38,93 @@ def _mark_seen(update_id: int) -> bool:
     return True
 
 
+def _get_chat_lock(chat_id: int) -> asyncio.Lock:
+    lock = _chat_locks.get(chat_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _chat_locks[chat_id] = lock
+    return lock
+
+
 async def _process_update(chat_id: int, text: str) -> None:
     """Run one agent turn and stream its output to Telegram.
 
     Runs as a background task so the webhook can return 200 immediately and
-    avoid Telegram retries on long turns. Enforces a hard timeout: when it
-    fires, the run_turn task is cancelled, which propagates through
-    ClaudeSDKClient.__aexit__ and kills the bundled `claude` subprocess — so
-    no tool calls continue after we give up.
+    avoid Telegram retries on long turns. Per-chat serialization ensures only
+    one turn runs at a time per chat: additional messages queue up and are
+    processed in arrival order. Enforces a hard timeout: when it fires, the
+    run_turn task is cancelled, which propagates through
+    ClaudeSDKClient.__aexit__ and kills the bundled `claude` subprocess.
     """
     settings = get_settings()
+    lock = _get_chat_lock(chat_id)
 
-    try:
-        await tg.send_chat_action(chat_id, "typing")
-    except Exception:
-        logger.exception("failed to send typing action")
-
-    chunks_sent = 0
-
-    async def send_chunk(chunk: str) -> None:
-        nonlocal chunks_sent
+    # If the agent is already busy for this chat, tell the user their message
+    # is queued before we block on the lock.
+    if lock.locked():
         try:
-            await tg.send_message(chat_id, format_for_telegram(chunk))
-            chunks_sent += 1
+            await tg.send_message(
+                chat_id,
+                "⏳ Je termine ton message précédent, je m'occupe de celui-ci juste après.",
+            )
         except Exception:
-            logger.exception("failed to send streamed chunk to Telegram")
+            logger.exception("failed to send queued notice")
+
+    async with lock:
         try:
             await tg.send_chat_action(chat_id, "typing")
         except Exception:
-            pass
+            logger.exception("failed to send typing action")
 
-    turn_task = asyncio.create_task(run_turn(text, on_chunk=send_chunk))
-    try:
-        await asyncio.wait_for(
-            asyncio.shield(turn_task), timeout=settings.agent_timeout_seconds
-        )
-    except asyncio.TimeoutError:
-        logger.warning("agent timeout after %ss — cancelling", settings.agent_timeout_seconds)
-        turn_task.cancel()
-        # Wait for the task to fully tear down (SDK subprocess kill). We give
-        # it a short grace window; if it refuses to die we move on — but we do
-        # NOT send any further messages either way.
+        chunks_sent = 0
+
+        async def send_chunk(chunk: str) -> None:
+            nonlocal chunks_sent
+            try:
+                await tg.send_message(chat_id, format_for_telegram(chunk))
+                chunks_sent += 1
+            except Exception:
+                logger.exception("failed to send streamed chunk to Telegram")
+            try:
+                await tg.send_chat_action(chat_id, "typing")
+            except Exception:
+                pass
+
+        turn_task = asyncio.create_task(run_turn(text, on_chunk=send_chunk))
         try:
-            await asyncio.wait_for(turn_task, timeout=10)
-        except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
-            pass
-        try:
-            if chunks_sent == 0:
-                await tg.send_message(
-                    chat_id,
-                    "⏱ Trop long, j'ai abandonné. Réessaye avec une demande plus simple.",
-                )
-            else:
-                await tg.send_message(chat_id, "⏱ (timeout atteint, je m'arrête ici)")
-        except Exception:
-            logger.exception("failed to send timeout message")
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("agent error")
-        try:
-            await tg.send_message(
-                chat_id, f"❌ Erreur interne : {type(exc).__name__}: {exc}"
+            await asyncio.wait_for(
+                asyncio.shield(turn_task), timeout=settings.agent_timeout_seconds
             )
-        except Exception:
-            logger.exception("failed to send error message")
+        except asyncio.TimeoutError:
+            logger.warning(
+                "agent timeout after %ss — cancelling", settings.agent_timeout_seconds
+            )
+            turn_task.cancel()
+            # Wait for the task to fully tear down (SDK subprocess kill). We give
+            # it a short grace window; if it refuses to die we move on — but we do
+            # NOT send any further messages either way.
+            try:
+                await asyncio.wait_for(turn_task, timeout=10)
+            except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+                pass
+            try:
+                if chunks_sent == 0:
+                    await tg.send_message(
+                        chat_id,
+                        "⏱ Trop long, j'ai abandonné. Réessaye avec une demande plus simple.",
+                    )
+                else:
+                    await tg.send_message(chat_id, "⏱ (timeout atteint, je m'arrête ici)")
+            except Exception:
+                logger.exception("failed to send timeout message")
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("agent error")
+            try:
+                await tg.send_message(
+                    chat_id, f"❌ Erreur interne : {type(exc).__name__}: {exc}"
+                )
+            except Exception:
+                logger.exception("failed to send error message")
 
 
 @router.post("/webhook/telegram")
