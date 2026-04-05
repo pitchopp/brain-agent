@@ -35,8 +35,8 @@ class Settings(BaseSettings):
 
     # Runtime
     brain_pull_interval_seconds: int = Field(300, alias="BRAIN_PULL_INTERVAL_SECONDS")
-    max_agent_turns: int = Field(20, alias="MAX_AGENT_TURNS")
-    agent_timeout_seconds: int = Field(120, alias="AGENT_TIMEOUT_SECONDS")
+    max_agent_turns: int = Field(40, alias="MAX_AGENT_TURNS")
+    agent_timeout_seconds: int = Field(300, alias="AGENT_TIMEOUT_SECONDS")
     log_level: str = Field("INFO", alias="LOG_LEVEL")
 
     @field_validator("allowed_telegram_user_ids")

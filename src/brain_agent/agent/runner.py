@@ -59,7 +59,7 @@ async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
     """
     settings = get_settings()
     intent = detect_intent(user_text)
-    logger.info("intent=%s text=%r", intent, user_text[:100])
+    logger.info("intent=%s text=%r", intent, user_text)
 
     # In capture mode, always pull first so the agent works from a fresh state.
     if intent == "capture":

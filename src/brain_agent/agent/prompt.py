@@ -81,12 +81,13 @@ _QUERY_INSTRUCTIONS = """
 # Mode QUERY
 L'utilisateur te pose une question sur le contenu du brain. Procédure :
 
-1. **Cherche** : utilise Grep/Glob pour trouver les notes pertinentes (par mot-clé, tag, type).
-2. **Lis** les 2-5 notes les plus prometteuses via Read.
-3. **Synthétise une réponse COURTE** (≤10 lignes) en français, avec des références sous forme `[[id-note]]` pointant vers les sources.
-4. **Ne modifie AUCUN fichier**. N'appelle NI validate_brain NI git_commit_push.
-5. Si le brain ne contient pas l'info → dis-le franchement ("aucune note sur ce sujet dans le brain"). Ne fabrique rien.
-6. Si plusieurs angles pertinents → structure ta réponse en bullets ultra-courts.
+1. **Vérifie d'abord que c'est bien une question.** Si le message est en réalité une affirmation, une mise à jour, une info nouvelle, ou une correction (ex: "tout ce qui touche à X c'est en fait Y", "note que…", "en vrai Z est…"), c'est une CAPTURE mal routée. Dans ce cas : traite-le comme une capture (cherche redondances, édite/crée la note, valide, commit) et mentionne en 1 phrase dans ton message final que tu as re-routé.
+2. **Cherche** : utilise Grep/Glob pour trouver les notes pertinentes (par mot-clé, tag, type).
+3. **Lis** les 2-5 notes les plus prometteuses via Read.
+4. **Synthétise une réponse COURTE** (≤10 lignes) en français, avec des références sous forme `[[id-note]]` pointant vers les sources.
+5. **Si tu es resté en mode query (vraie question) : ne modifie AUCUN fichier.** N'appelle NI validate_brain NI git_commit_push. INTERDIT d'éditer quoi que ce soit en mode query — si tu penses qu'il faut éditer, c'est que tu dois re-router en capture (étape 1), pas éditer en douce.
+6. Si le brain ne contient pas l'info → dis-le franchement ("aucune note sur ce sujet dans le brain"). Ne fabrique rien.
+7. Si plusieurs angles pertinents → structure ta réponse en bullets ultra-courts.
 """
 
 
