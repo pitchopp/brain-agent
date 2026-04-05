@@ -90,3 +90,32 @@ def resolve_auth(api_key: str | None) -> ResolvedAuth:
         "No auth available: neither ~/.claude/.credentials.json nor "
         "ANTHROPIC_API_KEY is set. Mount an OAuth session or provide an API key."
     )
+
+
+def log_auth_status(api_key: str | None) -> None:
+    """Log the auth mode at startup so operators can verify the mount worked.
+
+    Safe to call before the first turn; does not raise if nothing is
+    configured, just logs a warning.
+    """
+    path = _credentials_path()
+    if _oauth_available():
+        logger.info("auth: OAuth session detected at %s (will be used)", path)
+        if api_key:
+            logger.info(
+                "auth: ANTHROPIC_API_KEY is also set but will be ignored in favor of OAuth"
+            )
+        return
+    if path.exists():
+        logger.warning(
+            "auth: %s exists but is unusable (bad JSON or missing refreshToken)",
+            path,
+        )
+    else:
+        logger.info("auth: no OAuth session at %s", path)
+    if api_key:
+        logger.info("auth: will fall back to ANTHROPIC_API_KEY")
+    else:
+        logger.warning(
+            "auth: neither OAuth nor ANTHROPIC_API_KEY available — agent turns will fail"
+        )

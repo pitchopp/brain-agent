@@ -48,12 +48,11 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Brain working copy lives here (mount as a volume).
 RUN mkdir -p /data/brain
 
-# Entrypoint decodes the OAuth session from CLAUDE_OAUTH_CREDENTIALS_B64 at
-# boot (optional — falls back to ANTHROPIC_API_KEY if not provided).
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Claude auth: mount an OAuth session as a file at /root/.claude/.credentials.json
+# (via Dokploy File Mount) to use the Claude Max/Pro subscription instead of the
+# API. Otherwise set ANTHROPIC_API_KEY. The app logs which mode it detected at
+# startup — see brain_agent.agent.auth.log_auth_status.
 
 EXPOSE 8000
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["uvicorn", "brain_agent.main:app", "--host", "0.0.0.0", "--port", "8000"]

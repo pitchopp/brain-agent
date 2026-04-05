@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from brain_agent.agent.auth import log_auth_status
 from brain_agent.brain import repo
 from brain_agent.brain.puller import run_puller
 from brain_agent.config import get_settings
@@ -27,6 +28,8 @@ async def lifespan(app: FastAPI):
     _setup_logging()
     logger = logging.getLogger("brain_agent.main")
     logger.info("brain-agent starting up")
+
+    log_auth_status(get_settings().anthropic_api_key or None)
 
     repo.setup_ssh_key()
     await repo.configure_git_identity()
