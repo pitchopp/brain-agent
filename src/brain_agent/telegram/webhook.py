@@ -92,6 +92,18 @@ async def _process_update(chat_id: int, text: str) -> None:
             except Exception:
                 pass
 
+        # Telegram's "typing" indicator expires after ~5s. Keep it alive for the
+        # whole duration of the turn (not only when the agent is actually
+        # emitting text) by resending it periodically in the background.
+        async def _keep_typing() -> None:
+            while True:
+                await asyncio.sleep(4)
+                try:
+                    await tg.send_chat_action(chat_id, "typing")
+                except Exception:
+                    pass
+
+        keepalive_task = asyncio.create_task(_keep_typing())
         turn_task = asyncio.create_task(run_turn(text, on_chunk=send_chunk))
         try:
             await asyncio.wait_for(
@@ -135,6 +147,12 @@ async def _process_update(chat_id: int, text: str) -> None:
                 )
             except Exception:
                 logger.exception("failed to send error message")
+        finally:
+            keepalive_task.cancel()
+            try:
+                await keepalive_task
+            except (asyncio.CancelledError, Exception):
+                pass
 
 
 @router.post("/webhook/telegram")
