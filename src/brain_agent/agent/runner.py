@@ -55,7 +55,7 @@ async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
         allowed_tools=BUILTIN_TOOLS + MCP_TOOLS,
         mcp_servers={"brain": brain_mcp_server},
         cwd=str(settings.brain_local_path),
-        permission_mode="acceptEdits",
+        permission_mode="bypassPermissions",
         max_turns=settings.max_agent_turns,
         env={"ANTHROPIC_API_KEY": settings.anthropic_api_key},
     )
