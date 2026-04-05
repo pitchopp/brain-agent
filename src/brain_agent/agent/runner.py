@@ -28,7 +28,23 @@ logger = logging.getLogger(__name__)
 
 OnChunk = Callable[[str], Awaitable[None]]
 
-BUILTIN_TOOLS = ["Read", "Write", "Edit", "Grep", "Glob", "Bash"]
+BUILTIN_TOOLS = [
+    # Filesystem & shell
+    "Read",
+    "Write",
+    "Edit",
+    "Grep",
+    "Glob",
+    "Bash",
+    "BashOutput",
+    "KillBash",
+    # Web access — lets the agent enrich notes with external sources
+    "WebFetch",
+    "WebSearch",
+    # Planning & sub-agents
+    "TodoWrite",
+    "Task",
+]
 MCP_TOOLS = [
     "mcp__brain__validate_brain",
     "mcp__brain__git_commit_push",
