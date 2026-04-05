@@ -114,10 +114,20 @@ async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
             chunk = "".join(text_parts).strip()
             if chunk:
                 full_response += ("\n\n" if full_response else "") + chunk
+                # Log the model's intermediate reasoning/commentary so it stays
+                # visible in Dokploy even though we no longer forward it to
+                # Telegram.
+                logger.info("agent text:\n%s", chunk)
 
             if tool_uses:
-                # Intermediate turn: drop the model's chatter. The persistent
-                # "typing" indicator in Telegram signals progress on its own.
+                # Intermediate turn: drop the model's chatter for the user, but
+                # log each tool call so progress is visible in Dokploy. The
+                # persistent "typing" indicator in Telegram signals progress on
+                # its own.
+                for tool in tool_uses:
+                    logger.info(
+                        "agent tool: %s input=%r", tool.name, tool.input
+                    )
                 continue
 
             # Text-only message = candidate final answer. Keep the latest one.
