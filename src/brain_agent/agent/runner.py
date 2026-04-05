@@ -35,19 +35,6 @@ MCP_TOOLS = [
 ]
 ALLOWED_TOOLS = BUILTIN_TOOLS + MCP_TOOLS
 
-# Short progress pings shown in Telegram for capture mode (one per tool kind,
-# deduplicated consecutively). Query mode stays silent until the final answer.
-_TOOL_PINGS = {
-    "Read": "je lis…",
-    "Grep": "je cherche…",
-    "Glob": "je cherche…",
-    "Write": "j'écris…",
-    "Edit": "j'édite…",
-    "Bash": "j'exécute…",
-    "mcp__brain__validate_brain": "je valide…",
-    "mcp__brain__git_commit_push": "je commit…",
-}
-
 
 async def _auto_approve_tool(
     tool_name: str,
@@ -103,7 +90,6 @@ async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
 
     full_response = ""
     last_final_text = ""
-    last_ping = ""
 
     async def _emit(text: str) -> None:
         if on_chunk is None or not text:
@@ -130,14 +116,8 @@ async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
                 full_response += ("\n\n" if full_response else "") + chunk
 
             if tool_uses:
-                # Intermediate turn: drop the model's chatter, emit a dedup ping
-                # in capture mode only.
-                if intent == "capture":
-                    for tool in tool_uses:
-                        ping = _TOOL_PINGS.get(tool.name)
-                        if ping and ping != last_ping:
-                            await _emit(ping)
-                            last_ping = ping
+                # Intermediate turn: drop the model's chatter. The persistent
+                # "typing" indicator in Telegram signals progress on its own.
                 continue
 
             # Text-only message = candidate final answer. Keep the latest one.
