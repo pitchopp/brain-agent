@@ -16,6 +16,7 @@ from claude_agent_sdk import (
     ToolPermissionContext,
 )
 
+from brain_agent.agent.auth import resolve_auth
 from brain_agent.agent.intent import detect_intent
 from brain_agent.agent.prompt import build_system_prompt
 from brain_agent.brain import repo
@@ -72,6 +73,8 @@ async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
         intent, settings.brain_local_path, settings.max_agent_turns
     )
 
+    auth = resolve_auth(settings.anthropic_api_key or None)
+
     options = ClaudeAgentOptions(
         system_prompt=system_prompt,
         model=settings.anthropic_model,
@@ -81,7 +84,7 @@ async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
         permission_mode="default",
         can_use_tool=_auto_approve_tool,
         max_turns=settings.max_agent_turns,
-        env={"ANTHROPIC_API_KEY": settings.anthropic_api_key},
+        env=auth.env,
     )
 
     full_response = ""

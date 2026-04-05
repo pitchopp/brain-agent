@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     allowed_telegram_user_ids: str = Field("", alias="ALLOWED_TELEGRAM_USER_IDS")
     telegram_admin_chat_id: int | None = Field(None, alias="TELEGRAM_ADMIN_CHAT_ID")
 
-    # Anthropic
-    anthropic_api_key: str = Field(..., alias="ANTHROPIC_API_KEY")
+    # Anthropic — either an API key OR an OAuth session (preferred, cheaper).
+    # At least one of the two must be available at runtime (see agent.auth).
+    anthropic_api_key: str = Field("", alias="ANTHROPIC_API_KEY")
     anthropic_model: str = Field("claude-sonnet-4-5", alias="ANTHROPIC_MODEL")
 
     # Git / brain repo
