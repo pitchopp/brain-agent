@@ -1,0 +1,13 @@
+services:
+  brain-agent:
+    build: .
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - brain-data:/data/brain
+    restart: unless-stopped
+
+volumes:
+  brain-data:
