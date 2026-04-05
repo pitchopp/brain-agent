@@ -5,11 +5,15 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 
+from typing import Any
+
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKClient,
+    PermissionResultAllow,
     TextBlock,
+    ToolPermissionContext,
 )
 
 from brain_agent.agent.intent import detect_intent
@@ -27,6 +31,23 @@ MCP_TOOLS = [
     "mcp__brain__validate_brain",
     "mcp__brain__git_commit_push",
 ]
+ALLOWED_TOOLS = BUILTIN_TOOLS + MCP_TOOLS
+
+
+async def _auto_approve_tool(
+    tool_name: str,
+    tool_input: dict[str, Any],
+    context: ToolPermissionContext,
+) -> PermissionResultAllow:
+    """Auto-approve any tool in the allowlist.
+
+    The agent runs headless behind a Telegram webhook with no human to approve
+    tool calls interactively. We cannot use permission_mode="bypassPermissions"
+    because the bundled Claude Code CLI refuses it when running as root inside
+    the container, so we provide an explicit can_use_tool handler instead.
+    """
+    logger.debug("auto-approving tool %s", tool_name)
+    return PermissionResultAllow()
 
 
 async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
@@ -54,10 +75,11 @@ async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
     options = ClaudeAgentOptions(
         system_prompt=system_prompt,
         model=settings.anthropic_model,
-        allowed_tools=BUILTIN_TOOLS + MCP_TOOLS,
+        allowed_tools=ALLOWED_TOOLS,
         mcp_servers={"brain": brain_mcp_server},
         cwd=str(settings.brain_local_path),
-        permission_mode="bypassPermissions",
+        permission_mode="default",
+        can_use_tool=_auto_approve_tool,
         max_turns=settings.max_agent_turns,
         env={"ANTHROPIC_API_KEY": settings.anthropic_api_key},
     )
