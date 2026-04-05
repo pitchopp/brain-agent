@@ -64,7 +64,9 @@ async def run_git(*args: str, cwd: Path | None = None) -> GitResult:
 def setup_ssh_key() -> None:
     """Write the SSH private key from env into ~/.ssh/id_ed25519.
 
-    No-op if the key env var is empty (useful for local dev over HTTPS).
+    Also writes ~/.ssh/config so that any `git push` (including ones issued by
+    the agent via the Bash tool, which bypass our GIT_SSH_COMMAND) skips host
+    key verification. No-op if the key env var is empty.
     """
     settings = get_settings()
     if not settings.git_ssh_private_key.strip():
@@ -79,6 +81,17 @@ def setup_ssh_key() -> None:
     key_path.write_text(key_content)
     key_path.chmod(0o600)
     logger.info("SSH key written to %s", key_path)
+
+    config_path = ssh_dir / "config"
+    config_path.write_text(
+        "Host *\n"
+        "    StrictHostKeyChecking no\n"
+        "    UserKnownHostsFile /dev/null\n"
+        "    IdentityFile ~/.ssh/id_ed25519\n"
+        "    LogLevel ERROR\n"
+    )
+    config_path.chmod(0o600)
+    logger.info("SSH config written to %s", config_path)
 
 
 async def configure_git_identity() -> None:

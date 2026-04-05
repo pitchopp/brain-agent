@@ -19,6 +19,11 @@ Tu as accès à des tools built-in (Read, Write, Edit, Grep, Glob, Bash) pour na
 - mcp__brain__git_commit_push : commit et push les changements (avec validation préalable)
 
 Toutes les règles ci-dessous sont NON-NÉGOCIABLES.
+
+# Règles d'outils
+- Pour commit/push : utilise UNIQUEMENT `mcp__brain__git_commit_push`. N'appelle JAMAIS `git commit` ni `git push` via Bash, même en cas d'erreur.
+- Pour valider : utilise UNIQUEMENT `mcp__brain__validate_brain`.
+- Annonce toujours une courte phrase (≤1 ligne) AVANT chaque outil non-trivial, pour que l'utilisateur voie la progression. Ex: "je cherche si la note existe déjà…", "j'édite la note…", "je valide et commit…".
 """
 
 _CAPTURE_INSTRUCTIONS = """

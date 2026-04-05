@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -19,6 +20,8 @@ from brain_agent.tools.brain_mcp import brain_mcp_server
 
 logger = logging.getLogger(__name__)
 
+OnChunk = Callable[[str], Awaitable[None]]
+
 BUILTIN_TOOLS = ["Read", "Write", "Edit", "Grep", "Glob", "Bash"]
 MCP_TOOLS = [
     "mcp__brain__validate_brain",
@@ -26,8 +29,13 @@ MCP_TOOLS = [
 ]
 
 
-async def run_turn(user_text: str) -> str:
-    """Execute one exchange with the agent and return the final assistant text."""
+async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
+    """Execute one exchange with the agent.
+
+    Streams intermediate assistant messages via `on_chunk` as the agent
+    produces them (one call per non-empty AssistantMessage text). Returns
+    the concatenated full response at the end.
+    """
     settings = get_settings()
     intent = detect_intent(user_text)
     logger.info("intent=%s text=%r", intent, user_text[:100])
@@ -52,17 +60,26 @@ async def run_turn(user_text: str) -> str:
         env={"ANTHROPIC_API_KEY": settings.anthropic_api_key},
     )
 
-    response_text = ""
+    full_response = ""
     async with ClaudeSDKClient(options=options) as client:
         await client.query(user_text)
         async for message in client.receive_response():
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        response_text += block.text
+            if not isinstance(message, AssistantMessage):
+                continue
+            chunk = "".join(
+                block.text for block in message.content if isinstance(block, TextBlock)
+            ).strip()
+            if not chunk:
+                continue
+            full_response += ("\n\n" if full_response else "") + chunk
+            if on_chunk is not None:
+                try:
+                    await on_chunk(chunk)
+                except Exception:
+                    logger.exception("on_chunk callback failed")
 
-    response_text = response_text.strip()
-    if not response_text:
-        response_text = "(l'agent n'a produit aucune réponse textuelle)"
-    logger.info("agent response:\n%s", response_text)
-    return response_text
+    full_response = full_response.strip()
+    if not full_response:
+        full_response = "(l'agent n'a produit aucune réponse textuelle)"
+    logger.info("agent response:\n%s", full_response)
+    return full_response
