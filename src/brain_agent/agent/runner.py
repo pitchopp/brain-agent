@@ -63,4 +63,5 @@ async def run_turn(user_text: str) -> str:
     response_text = response_text.strip()
     if not response_text:
         response_text = "(l'agent n'a produit aucune réponse textuelle)"
+    logger.info("agent response:\n%s", response_text)
     return response_text

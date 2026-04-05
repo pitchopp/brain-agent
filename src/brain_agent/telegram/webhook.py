@@ -27,7 +27,11 @@ async def telegram_webhook(
         logger.warning("rejected webhook: bad secret")
         raise HTTPException(status_code=403, detail="forbidden")
 
-    update = await request.json()
+    try:
+        update = await request.json()
+    except Exception:
+        logger.warning("rejected webhook: invalid JSON body")
+        raise HTTPException(status_code=400, detail="invalid json")
     message = update.get("message") or update.get("edited_message")
     if not message:
         return {"ok": True}
