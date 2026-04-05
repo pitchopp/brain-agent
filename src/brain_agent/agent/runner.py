@@ -47,7 +47,9 @@ async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
             if not res.ok:
                 logger.warning("pre-turn pull failed: %s", res.stderr)
 
-    system_prompt = build_system_prompt(intent, settings.brain_local_path)
+    system_prompt = build_system_prompt(
+        intent, settings.brain_local_path, settings.max_agent_turns
+    )
 
     options = ClaudeAgentOptions(
         system_prompt=system_prompt,

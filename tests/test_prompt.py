@@ -14,7 +14,7 @@ def _make_brain(tmp_path: Path) -> Path:
 
 def test_prompt_contains_all_sections_capture(tmp_path: Path) -> None:
     brain = _make_brain(tmp_path)
-    prompt = build_system_prompt("capture", brain)
+    prompt = build_system_prompt("capture", brain, 20)
     assert "Contrat du brain" in prompt
     assert "`tech`" in prompt
     assert "[alpha](knowledge/alpha.md)" in prompt
@@ -24,7 +24,7 @@ def test_prompt_contains_all_sections_capture(tmp_path: Path) -> None:
 
 def test_prompt_query_mode(tmp_path: Path) -> None:
     brain = _make_brain(tmp_path)
-    prompt = build_system_prompt("query", brain)
+    prompt = build_system_prompt("query", brain, 20)
     assert "Mode QUERY" in prompt
     assert "Mode CAPTURE" not in prompt
     # Query mode must never suggest writing.
@@ -34,5 +34,5 @@ def test_prompt_query_mode(tmp_path: Path) -> None:
 def test_prompt_missing_files_graceful(tmp_path: Path) -> None:
     brain = tmp_path / "empty"
     brain.mkdir()
-    prompt = build_system_prompt("capture", brain)
+    prompt = build_system_prompt("capture", brain, 20)
     assert "file not found" in prompt

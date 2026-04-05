@@ -14,6 +14,13 @@ from brain_agent.agent.intent import Intent
 _PREAMBLE = """Tu es brain-agent, un agent IA qui maintient un second brain personnel en Markdown.
 Tu réponds TOUJOURS en français. Tu travailles dans le répertoire {brain_path}.
 
+# Budget de turns
+Tu disposes de MAX {max_turns} turns (appels d'outils) pour ce message. C'est une limite DURE imposée par le SDK : si tu l'atteins, tu es coupé net au milieu de ton travail, sans pouvoir commit ni répondre. Tu dois donc activement gérer ce budget :
+- Vise ≤ la moitié du budget ({half_turns} turns) pour les phases exploration+édition, et GARDE toujours au moins 3 turns en réserve pour validate_brain + git_commit_push + message final.
+- Si tu as déjà consommé ~{half_turns} turns sans avoir édité de fichier, SIMPLIFIE drastiquement : arrête de chercher des redondances, crée la note minimale et passe direct à la validation/commit.
+- Ne lance pas de Grep/Glob spéculatifs "au cas où". Chaque outil doit servir une décision concrète.
+- Priorité absolue : finir le commit et envoyer le message récap. Mieux vaut une note simple committée qu'une note parfaite jamais sauvegardée.
+
 Tu as accès à des tools built-in (Read, Write, Edit, Grep, Glob, Bash) pour naviguer et modifier le brain, ainsi qu'à deux tools custom via MCP :
 - mcp__brain__validate_brain : valide wiki-links + tags + frontmatter
 - mcp__brain__git_commit_push : commit et push les changements (avec validation préalable)
@@ -90,14 +97,18 @@ def _safe_read(path: Path) -> str:
         return f"[file not found: {path.name}]"
 
 
-def build_system_prompt(intent: Intent, brain_path: Path) -> str:
+def build_system_prompt(intent: Intent, brain_path: Path, max_turns: int) -> str:
     """Assemble the system prompt from preamble + brain meta files + instructions."""
     claude_md = _safe_read(brain_path / "CLAUDE.md")
     taxonomie = _safe_read(brain_path / "TAXONOMIE.md")
     map_md = _safe_read(brain_path / "MAP.md")
 
     parts = [
-        _PREAMBLE.format(brain_path=brain_path),
+        _PREAMBLE.format(
+            brain_path=brain_path,
+            max_turns=max_turns,
+            half_turns=max(1, max_turns // 2),
+        ),
         "\n\n# CLAUDE.md du brain (contrats opérationnels)\n\n",
         claude_md,
         "\n\n# TAXONOMIE.md (source de vérité tags/types/status)\n\n",
