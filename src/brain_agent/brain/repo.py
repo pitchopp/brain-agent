@@ -111,7 +111,7 @@ async def ensure_brain_cloned() -> None:
     if git_dir.exists():
         logger.info("Brain already cloned at %s, pulling", path)
         async with repo_lock:
-            res = await run_git("pull", "--rebase", "origin", settings.brain_repo_branch)
+            res = await pull_rebase()
             if not res.ok:
                 logger.error("Initial pull failed: %s", res.stderr)
         return
