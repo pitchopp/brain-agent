@@ -136,10 +136,43 @@ async def ensure_brain_cloned() -> None:
     logger.info("Brain cloned successfully")
 
 
+async def _has_dirty_worktree() -> bool:
+    res = await run_git("status", "--porcelain")
+    return bool(res.stdout.strip())
+
+
 async def pull_rebase() -> GitResult:
-    """Pull with rebase. Caller must hold repo_lock."""
+    """Pull with rebase. Caller must hold repo_lock.
+
+    If the worktree is dirty (leftover from a crashed/timed-out turn), stash
+    the changes first so the pull can succeed. The stash is kept on the stack
+    with a tagged message so it can be inspected manually if needed.
+    """
     settings = get_settings()
-    return await run_git("pull", "--rebase", "origin", settings.brain_repo_branch)
+    stashed = False
+    if await _has_dirty_worktree():
+        logger.warning("dirty worktree detected before pull, stashing")
+        stash = await run_git(
+            "stash", "push", "-u", "-m", "brain-agent: auto-stash before pull"
+        )
+        if not stash.ok:
+            logger.error("auto-stash failed: %s", stash.stderr)
+            return stash
+        stashed = True
+
+    res = await run_git("pull", "--rebase", "origin", settings.brain_repo_branch)
+
+    if stashed:
+        # Don't try to reapply: the stashed changes were almost certainly
+        # garbage from a previous failed turn, and reapplying would risk a
+        # conflict that blocks the next pull too. Drop the stash after logging.
+        drop = await run_git("stash", "drop")
+        if drop.ok:
+            logger.warning("auto-stash dropped (previous dirty state discarded)")
+        else:
+            logger.warning("auto-stash kept (drop failed): %s", drop.stderr)
+
+    return res
 
 
 async def commit_and_push(message: str) -> tuple[bool, str]:
