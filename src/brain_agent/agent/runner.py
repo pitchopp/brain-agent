@@ -14,6 +14,7 @@ from claude_agent_sdk import (
     PermissionResultAllow,
     TextBlock,
     ToolPermissionContext,
+    ToolUseBlock,
 )
 
 from brain_agent.agent.auth import resolve_auth
@@ -33,6 +34,19 @@ MCP_TOOLS = [
     "mcp__brain__git_commit_push",
 ]
 ALLOWED_TOOLS = BUILTIN_TOOLS + MCP_TOOLS
+
+# Short progress pings shown in Telegram for capture mode (one per tool kind,
+# deduplicated consecutively). Query mode stays silent until the final answer.
+_TOOL_PINGS = {
+    "Read": "je lis…",
+    "Grep": "je cherche…",
+    "Glob": "je cherche…",
+    "Write": "j'écris…",
+    "Edit": "j'édite…",
+    "Bash": "j'exécute…",
+    "mcp__brain__validate_brain": "je valide…",
+    "mcp__brain__git_commit_push": "je commit…",
+}
 
 
 async def _auto_approve_tool(
@@ -88,25 +102,58 @@ async def run_turn(user_text: str, on_chunk: OnChunk | None = None) -> str:
     )
 
     full_response = ""
+    last_final_text = ""
+    last_ping = ""
+
+    async def _emit(text: str) -> None:
+        if on_chunk is None or not text:
+            return
+        try:
+            await on_chunk(text)
+        except Exception:
+            logger.exception("on_chunk callback failed")
+
     async with ClaudeSDKClient(options=options) as client:
         await client.query(user_text)
         async for message in client.receive_response():
             if not isinstance(message, AssistantMessage):
                 continue
-            chunk = "".join(
+
+            text_parts = [
                 block.text for block in message.content if isinstance(block, TextBlock)
-            ).strip()
-            if not chunk:
+            ]
+            tool_uses = [
+                block for block in message.content if isinstance(block, ToolUseBlock)
+            ]
+            chunk = "".join(text_parts).strip()
+            if chunk:
+                full_response += ("\n\n" if full_response else "") + chunk
+
+            if tool_uses:
+                # Intermediate turn: drop the model's chatter, emit a dedup ping
+                # in capture mode only.
+                if intent == "capture":
+                    for tool in tool_uses:
+                        ping = _TOOL_PINGS.get(tool.name)
+                        if ping and ping != last_ping:
+                            await _emit(ping)
+                            last_ping = ping
                 continue
-            full_response += ("\n\n" if full_response else "") + chunk
-            if on_chunk is not None:
-                try:
-                    await on_chunk(chunk)
-                except Exception:
-                    logger.exception("on_chunk callback failed")
+
+            # Text-only message = candidate final answer. Keep the latest one.
+            if chunk:
+                last_final_text = chunk
 
     full_response = full_response.strip()
     if not full_response:
         full_response = "(l'agent n'a produit aucune réponse textuelle)"
+        await _emit(full_response)
+    elif last_final_text:
+        await _emit(last_final_text)
+    else:
+        # Agent produced text but always alongside tool calls — surface the
+        # accumulated text so the user still sees something.
+        await _emit(full_response)
+
     logger.info("agent response:\n%s", full_response)
     return full_response

@@ -65,7 +65,9 @@ async def _process_update(chat_id: int, text: str) -> None:
         try:
             await tg.send_message(
                 chat_id,
-                "⏳ Je termine ton message précédent, je m'occupe de celui-ci juste après.",
+                format_for_telegram(
+                    "⏳ Je termine ton message précédent, je m'occupe de celui-ci juste après."
+                ),
             )
         except Exception:
             logger.exception("failed to send queued notice")
@@ -111,17 +113,25 @@ async def _process_update(chat_id: int, text: str) -> None:
                 if chunks_sent == 0:
                     await tg.send_message(
                         chat_id,
-                        "⏱ Trop long, j'ai abandonné. Réessaye avec une demande plus simple.",
+                        format_for_telegram(
+                            "⏱ Trop long, j'ai abandonné. Réessaye avec une demande plus simple."
+                        ),
                     )
                 else:
-                    await tg.send_message(chat_id, "⏱ (timeout atteint, je m'arrête ici)")
+                    await tg.send_message(
+                        chat_id,
+                        format_for_telegram("⏱ (timeout atteint, je m'arrête ici)"),
+                    )
             except Exception:
                 logger.exception("failed to send timeout message")
         except Exception as exc:  # noqa: BLE001
             logger.exception("agent error")
             try:
                 await tg.send_message(
-                    chat_id, f"❌ Erreur interne : {type(exc).__name__}: {exc}"
+                    chat_id,
+                    format_for_telegram(
+                        f"❌ Erreur interne : {type(exc).__name__}: {exc}"
+                    ),
                 )
             except Exception:
                 logger.exception("failed to send error message")

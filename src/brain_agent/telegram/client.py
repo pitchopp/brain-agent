@@ -24,7 +24,13 @@ async def _post(method: str, payload: dict[str, Any]) -> dict[str, Any]:
         return r.json() if r.content else {}
 
 
-async def send_message(chat_id: int, text: str, parse_mode: str | None = None) -> None:
+async def send_message(chat_id: int, text: str, parse_mode: str | None = "HTML") -> None:
+    """Send a Telegram message. Defaults to HTML parse mode.
+
+    Callers should pass text that has already been run through
+    `format_for_telegram` to guarantee valid HTML. Pass `parse_mode=None`
+    explicitly if you really need raw text (not recommended).
+    """
     payload: dict[str, Any] = {
         "chat_id": chat_id,
         "text": text,
@@ -40,8 +46,12 @@ async def send_chat_action(chat_id: int, action: str = "typing") -> None:
 
 
 async def notify_admin(text: str) -> None:
+    # Imported here to avoid a circular import (formatter is a leaf module,
+    # but client.py is imported very early during app startup).
+    from brain_agent.telegram.formatter import format_for_telegram
+
     settings = get_settings()
     if settings.telegram_admin_chat_id is None:
         logger.warning("no TELEGRAM_ADMIN_CHAT_ID set, skipping admin notify")
         return
-    await send_message(settings.telegram_admin_chat_id, text)
+    await send_message(settings.telegram_admin_chat_id, format_for_telegram(text))

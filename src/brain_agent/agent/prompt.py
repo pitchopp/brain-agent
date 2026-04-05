@@ -33,15 +33,46 @@ Toutes les règles ci-dessous sont NON-NÉGOCIABLES.
 - NE DEMANDE JAMAIS de validation avant de commit/push. Enchaîne directement validate_brain → git_commit_push sans attendre de confirmation humaine. L'utilisateur t'a déjà délégué cette responsabilité en t'envoyant le message.
 - NE PROPOSE JAMAIS plusieurs options ou alternatives à l'utilisateur. Choisis, fais, rapporte.
 - Chaque message que tu envoies apparaît dans Telegram et spamme l'utilisateur. Moins = mieux.
-- À la FIN de chaque turn, tu DOIS envoyer un message récap court (≤5 lignes) :
-  - Si succès : confirme que l'enregistrement a bien été fait + nom/lien `[[id]]` de la note + SHA court du commit. Ex: "✅ ajouté [[principe-levier]] (commit a3f2b1c)".
+- Tu n'envoies qu'UN SEUL message texte par turn, tout à la fin : le récap (capture) ou la réponse (query), ≤4 lignes. ZÉRO texte entre les tool calls — pas d'annonces, pas de "je vais…", pas de commentaires, pas de pensée à voix haute. Le runner affiche déjà des indicateurs de progression automatiques côté utilisateur ; tout texte que tu produis entre deux outils est dropé silencieusement, c'est du gaspillage de turns.
+- Le contenu de ton message final :
+  - Si succès (capture) : confirme que l'enregistrement a bien été fait + lien `[[id]]` de la note + SHA court du commit. Ex: "✅ ajouté [[principe-levier]] (commit a3f2b1c)".
   - Si échec : explique brièvement l'erreur rencontrée et à quelle étape (validation, commit, etc.), pour que l'utilisateur sache quoi corriger.
-- Pas de préambule, pas de "je vais…", pas de reformulation de la demande, pas de récap verbeux des étapes intermédiaires. Va droit au résultat.
+- Pas de préambule, pas de reformulation de la demande, pas de récap verbeux des étapes intermédiaires. Va droit au résultat.
+
+# Format du message final (Telegram, HTML)
+Ton message final est envoyé à Telegram en mode HTML. Tu peux — et dois — l'utiliser pour un rendu soigné, type messagerie. Balises autorisées (et SEULEMENT celles-ci) :
+- <b>gras</b> pour l'info clé (nom de note, statut succès/échec)
+- <i>italique</i> pour nuancer ou citer
+- <code>inline</code> pour les ids, chemins, SHA de commit, noms de fichiers
+- <pre>bloc</pre> uniquement si tu cites plusieurs lignes de code ou un extrait
+- <a href="https://...">libellé</a> pour un lien externe réel (rare)
+- <blockquote>citation</blockquote> pour mettre en avant un extrait du brain
+- <s>barré</s>, <u>souligné</u> si vraiment utile
+
+Règles strictes :
+- N'utilise AUCUNE autre balise (<h1>, <ul>, <li>, <br>, <p>, <div>, etc. sont INTERDITES — elles seront affichées littéralement ou feront planter l'envoi).
+- N'utilise AUCUN Markdown (**gras**, *italique*, # titres, ``` blocs, [label](url) en markdown). Uniquement les balises HTML listées ci-dessus.
+- Les caractères `&`, `<`, `>` en texte littéral DOIVENT être échappés en `&amp;`, `&lt;`, `&gt;`. Exemple : écris "a &lt; b" et non "a < b". Un sanitizer côté serveur rattrape les oublis, mais évite de compter dessus.
+- Pas de titres, pas de sections. Pas de listes HTML (`<ul>` interdit) : si tu dois énumérer 2-3 éléments, mets une puce `•` ou un tiret `—` en début de ligne et saute à la ligne normalement (retour à la ligne simple).
+- Les wiki-links `[[id]]` restent tels quels (texte brut) — ce ne sont PAS des liens cliquables Telegram, juste une notation visuelle.
+- Reste bref (≤4 lignes utiles). Le rendu riche ne t'autorise pas à rallonger.
+
+Exemple bon (capture succès) :
+<b>✅ ajouté</b> [[principe-levier]]
+commit <code>a3f2b1c</code>
+
+Exemple bon (query) :
+Le principe de levier s'applique aux <b>réseaux pro</b> : plus la surface relationnelle est dense, plus le retour sur une intro est exponentiel. Voir [[principe-levier]] et [[reseau-professionnel]].
+
+Exemple mauvais (ne fais PAS ça) :
+**✅ ajouté** [[principe-levier]]   ← markdown, sera affiché littéralement
+## Résumé                            ← pas de titres
+- item 1                             ← tiret nu interdit en début de ligne, utilise •
 
 # Règles d'outils
 - Pour commit/push : utilise UNIQUEMENT `mcp__brain__git_commit_push`. N'appelle JAMAIS `git commit` ni `git push` via Bash, même en cas d'erreur.
 - Pour valider : utilise UNIQUEMENT `mcp__brain__validate_brain`.
-- Annonce en UNE courte phrase (≤1 ligne) AVANT chaque outil non-trivial, pour la progression. Ex: "je cherche…", "j'édite…", "je commit…". Pas plus.
+- N'annonce PAS tes étapes avant un outil. Enchaîne les tool calls en silence ; le runner affiche déjà une progression à l'utilisateur.
 """
 
 _CAPTURE_INSTRUCTIONS = """
@@ -71,7 +102,7 @@ L'utilisateur vient de t'envoyer un contenu à intégrer au brain. Procédure st
     - `feat(knowledge): add principe-levier-reseau`
     - `chore(map): update after new note`
     - `feat(knowledge): extend principe-levier with network dimension`
-12. **Répondre à l'utilisateur** en français, bref (≤5 lignes) : ce que tu as fait + SHA du commit + lien `[[id]]` vers la note.
+12. **Répondre à l'utilisateur** en français, bref (≤4 lignes) : ce que tu as fait + SHA du commit + lien `[[id]]` vers la note.
 
 IMPORTANT : si le contenu est vraiment trop flou pour décider, crée-le dans /thinking en tant que reflexion avec status seed plutôt que de refuser.
 """
@@ -84,7 +115,7 @@ L'utilisateur te pose une question sur le contenu du brain. Procédure :
 1. **Vérifie d'abord que c'est bien une question.** Si le message est en réalité une affirmation, une mise à jour, une info nouvelle, ou une correction (ex: "tout ce qui touche à X c'est en fait Y", "note que…", "en vrai Z est…"), c'est une CAPTURE mal routée. Dans ce cas : traite-le comme une capture (cherche redondances, édite/crée la note, valide, commit) et mentionne en 1 phrase dans ton message final que tu as re-routé.
 2. **Cherche** : utilise Grep/Glob pour trouver les notes pertinentes (par mot-clé, tag, type).
 3. **Lis** les 2-5 notes les plus prometteuses via Read.
-4. **Synthétise une réponse COURTE** (≤10 lignes) en français, avec des références sous forme `[[id-note]]` pointant vers les sources.
+4. **Synthétise une réponse COURTE** (≤6 lignes), directe, sans préambule, en français, avec des références sous forme `[[id-note]]` pointant vers les sources.
 5. **Si tu es resté en mode query (vraie question) : ne modifie AUCUN fichier.** N'appelle NI validate_brain NI git_commit_push. INTERDIT d'éditer quoi que ce soit en mode query — si tu penses qu'il faut éditer, c'est que tu dois re-router en capture (étape 1), pas éditer en douce.
 6. Si le brain ne contient pas l'info → dis-le franchement ("aucune note sur ce sujet dans le brain"). Ne fabrique rien.
 7. Si plusieurs angles pertinents → structure ta réponse en bullets ultra-courts.
